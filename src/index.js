@@ -1,12 +1,11 @@
-import ytdl from '@ybd-project/ytdl-core';
+// 1. Import the Serverless-specific build and the new Class
+import { YtdlCore } from '@ybd-project/ytdl-core/serverless';
 
 export default {
   async fetch(request, env, ctx) {
-    // 1. Parse the incoming request URL
     const url = new URL(request.url);
     const targetUrl = url.searchParams.get('url');
 
-    // 2. Validate input
     if (!targetUrl) {
       return new Response(JSON.stringify({ error: "Missing ?url= parameter" }), { 
         status: 400, 
@@ -15,24 +14,34 @@ export default {
     }
 
     try {
-      // 3. Extract media info using the ytdl library
-      const info = await ytdl.getInfo(targetUrl);
+      // 2. Initialize the Class
+      const ytdl = new YtdlCore();
 
-      // 4. Choose the best format (e.g., highest quality with both audio and video)
-      // Alternatively, you can use 'highestaudio' for an audio-only redirect
-      const format = ytdl.chooseFormat(info.formats, { quality: 'highest' });
+      // 3. Use the new method getFullInfo() instead of getInfo()
+      const info = await ytdl.getFullInfo(targetUrl);
 
-      if (!format || !format.url) {
-        return new Response(JSON.stringify({ error: "No suitable format found" }), { status: 404 });
+      // 4. Manually find the best format (prioritize combined Video + Audio)
+      let format = info.formats.find(f => f.hasVideo && f.hasAudio);
+      
+      // Fallback: if no combined stream exists, grab the first video stream
+      if (!format) {
+        format = info.formats.find(f => f.hasVideo) || info.formats[0];
       }
 
-      // 5. Generate the Redirect Response
-      // This sends a 302 status, forcing the browser/player to redirect to the raw Google Video URL
+      if (!format || !format.url) {
+        return new Response(JSON.stringify({ error: "No playable format found" }), { 
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // 5. Redirect the browser directly to the media stream
       return Response.redirect(format.url, 302);
 
     } catch (error) {
-      // Handle extraction errors (e.g., age-restricted videos or invalid links)
-      return new Response(JSON.stringify({ error: error.message }), { 
+      return new Response(JSON.stringify({ 
+        error: error.message 
+      }), { 
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
