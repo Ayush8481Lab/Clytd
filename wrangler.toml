@@ -1,4 +1,4 @@
-name = "yt-redirect-api"
+name = "clytd"
 main = "src/index.js"
 compatibility_date = "2024-03-20"
 compatibility_flags = [ "nodejs_compat" ]
